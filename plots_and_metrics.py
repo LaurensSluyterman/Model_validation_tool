@@ -65,122 +65,133 @@ def CI_G_LD(
     return np.round(GM_predicted / GM_observed, 2), CI
 
 
-def area_bootstrap_comparison(
-    observations, model_1_predictions, model_2_predictions, B=10000
-):
-    """Compute Wasserstein metrics when comparing two models
-
-    Arguments:
-        observations: An array containing observations
-        model_1_predictions: An array containing simulated values from model_1
-        model_2_predictions: An array containing simulated values from model_2
-        B (int): default = 10,000. The number of bootstrap samples
-
-    Returns:
-        W_1: The wasserstein distance between the observations and model 1
-        CI_1: The 90% CI of W_1
-        W_2: The wasserstein distance between the observations and model 1
-        CI_2: The 90% CI of W_2
-        ratio: W_1 / W_2
-        CI_ratio: The 90% CI of ratio
-    """
-    areas_1 = []
-    areas_2 = []
-    min_value = min(
-        [min(observations), min(model_1_predictions), min(model_2_predictions)]
-    )
-    max_value = max(
-        [max(observations), max(model_1_predictions), max(model_2_predictions)]
-    )
-    x_values = np.linspace(min_value, max_value, 800)
-    for _ in range(B):
-        observations_resample = np.random.choice(
-            observations, size=len(observations), replace=True
-        )
-        model_1_predictions_resample = np.random.choice(
-            model_1_predictions, size=len(observations), replace=True
-        )
-        model_2_predictions_resample = np.random.choice(
-            model_2_predictions, size=len(observations), replace=True
-        )
-        cdf_1 = scipy.stats.ecdf(model_1_predictions_resample).cdf.evaluate
-        cdf_2 = scipy.stats.ecdf(model_2_predictions_resample).cdf.evaluate
-        cdf_observations = scipy.stats.ecdf(observations_resample).cdf.evaluate
-        area_1 = np.trapz(
-            np.abs(cdf_1(x_values) - cdf_observations(x_values)), x_values
-        )
-        area_2 = np.trapz(
-            np.abs(cdf_2(x_values) - cdf_observations(x_values)), x_values
-        )
-        areas_1.append(area_1)
-        areas_2.append(area_2)
-    cdf_1 = scipy.stats.ecdf(model_1_predictions).cdf.evaluate
-    cdf_2 = scipy.stats.ecdf(model_2_predictions).cdf.evaluate
-    cdf_observations = scipy.stats.ecdf(observations).cdf.evaluate
-    area_1 = np.trapz(np.abs(cdf_1(x_values) - cdf_observations(x_values)), x_values)
-    area_2 = np.trapz(np.abs(cdf_2(x_values) - cdf_observations(x_values)), x_values)
-    CI_1 = [
-        np.round(np.percentile(areas_1, 5), 2),
-        np.round(np.percentile(areas_1, 95), 2),
-    ]
-    CI_2 = [
-        np.round(np.percentile(areas_2, 5), 2),
-        np.round(np.percentile(areas_2, 95), 2),
-    ]
-    ratios = np.array(areas_1) / np.array(areas_2)
-    CI_ratio = [
-        np.round(np.percentile(ratios, 5), 2),
-        np.round(np.percentile(ratios, 95), 2),
-    ]
-    W_1 = np.round(area_1, 2)
-    W_2 = np.round(area_2, 2)
-    ratio = np.round(area_1 / area_2, 2)
-    return W_1, CI_1, W_2, CI_2, ratio, CI_ratio
-
-
-def area_bootstrap_single(observations, model_1_predictions, B=10000):
-    """Compute Wasserstein metrics when comparing two models
-
-    Arguments:
-        observations: An array containing observations
-        model_1_predictions: An array containing simulated values from model_1
-        B (int): default = 10,000. The number of bootstrap samples
-
-    Returns:
-        W_1: The wasserstein distance between the observations and model 1
-        CI_1: The 90% CI of W_1
-    """
-    areas_1 = []
+def CRPS_metrics(observations, model_1_predictions, model_2_predictions=None, B=10000):
+    """Calculate average CRPS with confidence intervals and skill scores."""
+    CRPS_values_1 = []
+    skills_CRPS_1 = []
     min_value = min([min(observations), min(model_1_predictions)])
     max_value = max([max(observations), max(model_1_predictions)])
+    if model_2_predictions is not None:
+        skills_CRPS_2 = []
+        CRPS_values_2 = []
+        min_value = min([min(observations), min(model_1_predictions), min(model_2_predictions)])
+        max_value = max([max(observations), max(model_1_predictions), max(model_2_predictions)])
     x_values = np.linspace(min_value, max_value, 800)
     for _ in range(B):
-        observations_resample = np.random.choice(
-            observations, size=len(observations), replace=True
-        )
+        observations_resample = np.random.choice(observations, size=len(observations), replace=True)
         model_1_predictions_resample = np.random.choice(
             model_1_predictions, size=len(observations), replace=True
         )
+
         cdf_1 = scipy.stats.ecdf(model_1_predictions_resample).cdf.evaluate
         cdf_observations = scipy.stats.ecdf(observations_resample).cdf.evaluate
-        area_1 = np.trapz(
-            np.abs(cdf_1(x_values) - cdf_observations(x_values)), x_values
+        cdf_naive = scipy.stats.ecdf([np.mean(observations_resample)]).cdf.evaluate
+
+        CRPS_naive = np.trapz(
+            cdf_naive(x_values) ** 2
+            - 2 * cdf_naive(x_values) * cdf_observations(x_values)
+            + cdf_observations(x_values),
+            x_values,
         )
-        areas_1.append(area_1)
+        CRPS_1 = np.trapz(
+            cdf_1(x_values) ** 2
+            - 2 * cdf_1(x_values) * cdf_observations(x_values)
+            + cdf_observations(x_values),
+            x_values,
+        )
+        skills_CRPS_1.append(1 - CRPS_1 / CRPS_naive)
+        CRPS_values_1.append(CRPS_1)
+
+        if model_2_predictions is not None:
+            model_2_predictions_resample = np.random.choice(
+                model_2_predictions, size=len(observations), replace=True
+            )
+            cdf_2 = scipy.stats.ecdf(model_2_predictions_resample).cdf.evaluate
+            CRPS_2 = np.trapz(
+                cdf_2(x_values) ** 2
+                - 2 * cdf_2(x_values) * cdf_observations(x_values)
+                + cdf_observations(x_values),
+                x_values,
+            )
+            skills_CRPS_2.append(1 - CRPS_2 / CRPS_naive)
+            CRPS_values_2.append(CRPS_2)
+
     cdf_1 = scipy.stats.ecdf(model_1_predictions).cdf.evaluate
+    cdf_naive = scipy.stats.ecdf([np.median(observations)]).cdf.evaluate
     cdf_observations = scipy.stats.ecdf(observations).cdf.evaluate
-    area_1 = np.trapz(np.abs(cdf_1(x_values) - cdf_observations(x_values)), x_values)
-    W_1 = np.round(area_1, 2)
-    CI_1 = [
-        np.round(np.percentile(areas_1, 5), 2),
-        np.round(np.percentile(areas_1, 95), 2),
+
+    CRPS_1 = np.trapz(
+        cdf_1(x_values) ** 2
+        - 2 * cdf_1(x_values) * cdf_observations(x_values)
+        + cdf_observations(x_values),
+        x_values,
+    )
+
+    CRPS_naive = np.trapz(
+        cdf_naive(x_values) ** 2
+        - 2 * cdf_naive(x_values) * cdf_observations(x_values)
+        + cdf_observations(x_values),
+        x_values,
+    )
+    CI_CRPS_1 = [
+        np.round(np.percentile(CRPS_values_1, 5), 2),
+        np.round(np.percentile(CRPS_values_1, 95), 2),
     ]
-    return W_1, CI_1
+
+    CI_CRPS_skill_1 = [
+        np.round(np.percentile(skills_CRPS_1, 5), 2),
+        np.round(np.percentile(skills_CRPS_1, 95), 2),
+    ]
+
+    # Save the results to a dictionary
+    results_dict = {
+        "CRPS_1": np.round(CRPS_1, 2),
+        "CI(CRPS_1)": CI_CRPS_1,
+        "S(CRPS_1)": np.round(1 - CRPS_1 / CRPS_naive, 2),
+        "CI(S(CRPS_1))": CI_CRPS_skill_1,
+    }
+
+    # When comparing two models, repeat all steps for the second model
+    if model_2_predictions is not None:
+        cdf_2 = scipy.stats.ecdf(model_2_predictions).cdf.evaluate
+        CRPS_2 = np.trapz(
+            cdf_2(x_values) ** 2
+            - 2 * cdf_2(x_values) * cdf_observations(x_values)
+            + cdf_observations(x_values),
+            x_values,
+        )
+        CI_CRPS_2 = [
+            np.round(np.percentile(CRPS_values_2, 5), 2),
+            np.round(np.percentile(CRPS_values_2, 95), 2),
+        ]
+
+        CRPS_ratios = np.array(CRPS_values_1) / np.array(CRPS_values_2)
+        CI_CPRS_ratios = [
+            np.round(np.percentile(CRPS_ratios, 5), 2),
+            np.round(np.percentile(CRPS_ratios, 95), 2),
+        ]
+
+        CI_CRPS_skill_2 = [
+            np.round(np.percentile(skills_CRPS_2, 5), 2),
+            np.round(np.percentile(skills_CRPS_2, 95), 2),
+        ]
+
+        # Update the results dictionary with the metrics of the second model
+        results_dict.update(
+            {
+                "CRPS_2": np.round(CRPS_2, 2),
+                "CI(CRPS_2)": CI_CRPS_2,
+                "S(CRPS_2)": np.round(1 - CRPS_2 / CRPS_naive, 2),
+                "CI(S(CRPS_2))": CI_CRPS_skill_2,
+                "CRPS_ratio": np.round(CRPS_1 / CRPS_2, 2),
+                "CI(CRPS_ratio)": CI_CPRS_ratios,
+            }
+        )
+
+    return results_dict
 
 
-def calculate_metrics_comparison(
-    observations, model_1_predictions, model_2_predictions, output=False
-):
+def calculate_metrics_comparison(observations, model_1_predictions, model_2_predictions):
     """Calculate all metrics when comparing two models"""
     geomean_observations = scipy.stats.gmean(observations)
     geomean_1 = scipy.stats.gmean(model_1_predictions)
@@ -203,14 +214,12 @@ def calculate_metrics_comparison(
         len(model_2_predictions),
         alpha=0.1,
     )
-    W_1, CI_W_1, W_2, CI_W_2, ratio, CI_ratio = area_bootstrap_comparison(
-        observations, model_1_predictions, model_2_predictions, B=10000
-    )
-    return GMR_1, CI_GMR_1, GMR_2, CI_GMR_2, W_1, CI_W_1, W_2, CI_W_2, ratio, CI_ratio
+    CRPS_results = CRPS_metrics(observations, model_1_predictions, model_2_predictions)
+    return GMR_1, CI_GMR_1, GMR_2, CI_GMR_2, CRPS_results
 
 
-def calculate_metrics_single(observations, model_1_predictions, output=True):
-    """Calculate all metrics when evaluating a single model"""
+def calculate_metrics_single(observations, model_1_predictions):
+    """Calculate all metrics when evaluating a single model."""
     geomean_observations = scipy.stats.gmean(observations)
     geomean_1 = scipy.stats.gmean(model_1_predictions)
     GMR, CI_GMR = CI_G_LD(
@@ -222,11 +231,8 @@ def calculate_metrics_single(observations, model_1_predictions, output=True):
         len(model_1_predictions),
         alpha=0.1,
     )
-
-    mean_area, CI_area = area_bootstrap_single(
-        observations, model_1_predictions, B=10000
-    )
-    return np.round(GMR, 2), CI_GMR, mean_area, CI_area
+    CRPS_results = CRPS_metrics(observations, model_1_predictions)
+    return np.round(GMR, 2), CI_GMR, CRPS_results
 
 
 def plot_comparison(observations, model_1_predictions, model_2_predictions, xlabel):
@@ -234,12 +240,8 @@ def plot_comparison(observations, model_1_predictions, model_2_predictions, xlab
     cdf_1 = scipy.stats.ecdf(model_1_predictions).cdf.evaluate
     cdf_2 = scipy.stats.ecdf(model_2_predictions).cdf.evaluate
     cdf_observations = scipy.stats.ecdf(observations).cdf.evaluate
-    max_value = max(
-        [max(observations), max(model_1_predictions), max(model_2_predictions)]
-    )
-    min_value = min(
-        [min(observations), min(model_1_predictions), min(model_2_predictions)]
-    )
+    max_value = max([max(observations), max(model_1_predictions), max(model_2_predictions)])
+    min_value = min([min(observations), min(model_1_predictions), min(model_2_predictions)])
     x_values = np.linspace(0, max_value, 800)
     f1 = gaussian_kde(model_1_predictions, bw_method="silverman")
     f2 = gaussian_kde(model_2_predictions, bw_method="silverman")
@@ -279,9 +281,7 @@ def plot_comparison(observations, model_1_predictions, model_2_predictions, xlab
 
     ## CDF model 2 subplot ##
     ax3.plot(x_values, cdf_2(x_values), color="red", label="Model 2")
-    ax3.fill_between(
-        x_values, cdf_2(x_values), cdf_observations(x_values), color="red", alpha=0.25
-    )
+    ax3.fill_between(x_values, cdf_2(x_values), cdf_observations(x_values), color="red", alpha=0.25)
     ax3.plot(x_values, cdf_observations(x_values), color="black", label="Observations")
     ax3.set_ylabel("CDF")
     ax3.set_ylim([0, 1.01])
@@ -296,6 +296,7 @@ def plot_single(observations, predictions, xlabel, fontsize=10):
     """Produce the plots when evaluating a single model."""
     model_1_predictions = predictions
     cdf_1 = scipy.stats.ecdf(model_1_predictions).cdf.evaluate
+    # cdf_2 = scipy.stats.ecdf([np.mean(observations)]).cdf.evaluate
     cdf_observations = scipy.stats.ecdf(observations).cdf.evaluate
     max_value = max([max(observations), max(model_1_predictions)])
     min_value = min([min(observations), min(model_1_predictions)])
@@ -325,6 +326,10 @@ def plot_single(observations, predictions, xlabel, fontsize=10):
     ax2.fill_between(
         x_values, cdf_1(x_values), cdf_observations(x_values), color="blue", alpha=0.25
     )
+    # ax2.plot(x_values, cdf_2(x_values), color="blue")
+    # ax2.fill_between(
+    #     x_values, cdf_2(x_values), cdf_observations(x_values), color="red", alpha=0.25
+    # )
     ax2.set_ylim([0, 1.01])
     ax2.set_ylabel("CDF", fontsize=fontsize)
     ax2.plot(x_values, cdf_observations(x_values), color="black")
