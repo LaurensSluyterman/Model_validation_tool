@@ -10,4 +10,4 @@ There, you can upload csv files with observations and predictions and get the fo
 
 Additionally, visulisations of the PDFs and CDFs are given for a visual evaluation.
 
-Note that all these metrics are calculated for a model that estimates the marginal distribution. This means that we do not have individual predictions for each observations but rather a large set of predictions that aim to mimic the distribution of the observations. To get precise advise, it is therefor advised to use many predictions as this gives a more accurate estimate of the predicted distribution.
+Note that all these metrics are calculated for a model that estimates the marginal distribution. This means that we do not have individual predictions for each observations but rather a large set of predictions that aim to mimic the distribution of the observations. It is therefor advised to use a large set of predictions as this gives a more accurate estimate of the predicted distribution.
