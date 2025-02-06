@@ -42,6 +42,20 @@ def server(input: Inputs, output: Outputs, session: Session):
                     accept=[".csv"],
                     multiple=False,
                 ),
+                ui.markdown(
+                    """
+                            Two different plots are displayed. The top one gives a histogram of the data points along with 
+                            estimated probability density functions of both the observations and the model. These are estimated using
+                            a Gaussian Kernel Density estimator using the Silvestor bandwidth rule. The bottom figure provides
+                            the empirical CDF of the model compared to the emperical CDF of the observations. The average CRPS score
+                            is reported with an accompanying 90% CI (calculated using a bootstrap of size 10,000). The skill score gives 1 - CRPS_model / CRPS_naive, 
+                            where CRPS_naive is the CRPS of a model that always predicts the sample median.
+
+                            Lastly, the predicted-to-observed geometric mean ratio (that is, the geometric mean of the predictions divided by the geometric mean of
+                            the observations) is provided with an accompanying 90% CI. This CI is calculated parametrically (see https://doi.org/10.1007/s40262-023-01326-3 
+                            for details).
+                            """
+                ),
                 ui.output_text_verbatim("calc_result_single"),
                 ui.output_plot("data_plot_single", width="700px", height="700px"),
             )
