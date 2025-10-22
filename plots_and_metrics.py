@@ -85,7 +85,7 @@ def CRPS_metrics(observations, model_1_predictions, model_2_predictions=None, B=
 
         cdf_1 = scipy.stats.ecdf(model_1_predictions_resample).cdf.evaluate
         cdf_observations = scipy.stats.ecdf(observations_resample).cdf.evaluate
-        cdf_naive = scipy.stats.ecdf([np.mean(observations_resample)]).cdf.evaluate
+        cdf_naive = scipy.stats.ecdf([np.median(observations_resample)]).cdf.evaluate
 
         CRPS_naive = np.trapz(
             cdf_naive(x_values) ** 2
