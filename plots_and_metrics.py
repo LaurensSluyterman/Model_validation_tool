@@ -326,10 +326,6 @@ def plot_single(observations, predictions, xlabel, fontsize=10):
     ax2.fill_between(
         x_values, cdf_1(x_values), cdf_observations(x_values), color="blue", alpha=0.25
     )
-    # ax2.plot(x_values, cdf_2(x_values), color="blue")
-    # ax2.fill_between(
-    #     x_values, cdf_2(x_values), cdf_observations(x_values), color="red", alpha=0.25
-    # )
     ax2.set_ylim([0, 1.01])
     ax2.set_ylabel("CDF", fontsize=fontsize)
     ax2.plot(x_values, cdf_observations(x_values), color="black")
